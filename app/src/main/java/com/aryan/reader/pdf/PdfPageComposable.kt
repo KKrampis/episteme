@@ -3073,6 +3073,7 @@ internal fun PdfPageComposable(
                     var accumulatedPan = Offset.Zero
                     var swipeAccumulatorX = 0f
                     var velocityAccumulator = Offset.Zero
+                    var overPanAccumulatorX = 0f
 
                     do {
                         val event = awaitPointerEvent()
@@ -3139,12 +3140,15 @@ internal fun PdfPageComposable(
                                     val maxOffsetY =
                                         (contentHeight - size.height).coerceAtLeast(0f) / 2f
 
-                                    val newX = (offset.x + panChange.x).coerceIn(
-                                        -maxOffsetX, maxOffsetX
-                                    )
+                                    val rawNewX = offset.x + panChange.x
+                                    val newX = rawNewX.coerceIn(-maxOffsetX, maxOffsetX)
                                     val newY = (offset.y + panChange.y).coerceIn(
                                         -maxOffsetY, maxOffsetY
                                     )
+                                    // Accumulate pan that exceeds the horizontal edge for page-swipe-while-zoomed
+                                    if (maxOffsetX > 0f) {
+                                        overPanAccumulatorX += rawNewX - newX
+                                    }
                                     Timber.tag("PdfZoomDebug").v("Panning: Offset $offset -> $newX, $newY (Max: $maxOffsetX, $maxOffsetY)")
                                     offset = Offset(newX, newY)
 
@@ -3256,6 +3260,13 @@ internal fun PdfPageComposable(
                             }
                         }
                     } while (!canceled && event.changes.any { it.pressed })
+
+                    // Navigate to next/previous page when user pans past horizontal edge while zoomed
+                    val overPanThresholdPx = viewConfiguration.touchSlop * 6f
+                    if (mode == 1 && scale > 1f && kotlin.math.abs(overPanAccumulatorX) > overPanThresholdPx) {
+                        val direction = if (overPanAccumulatorX > 0f) -1 else 1
+                        onTwoFingerSwipe(direction)
+                    }
 
                     if (scale > 1f && scale < 1.05f) {
                         coroutineScope.launch {

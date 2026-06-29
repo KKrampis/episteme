@@ -660,45 +660,56 @@ internal fun PdfTopBar(
                     }
                 }
                 if (isTabsEnabled && openTabs.isNotEmpty() && effectiveFileType == FileType.PDF) {
-                    LazyRow(
-                        modifier = Modifier.fillMaxWidth().height(PdfTabStripHeight).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
-                        verticalAlignment = Alignment.Bottom
+                    BoxWithConstraints(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(PdfTabStripHeight)
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
                     ) {
-                        items(openTabs, key = { it.bookId }) { tab ->
-                            val isSelected = tab.bookId == activeTabBookId
-                            val bgColor = if (isSelected) MaterialTheme.colorScheme.surface else Color.Transparent
-                            val contentColor = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+                        val newTabButtonWidth = 52.dp
+                        val tabWidth = ((maxWidth - newTabButtonWidth) / openTabs.size)
+                            .coerceIn(72.dp, 180.dp)
+                        LazyRow(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalAlignment = Alignment.Bottom
+                        ) {
+                            items(openTabs, key = { it.bookId }) { tab ->
+                                val isSelected = tab.bookId == activeTabBookId
+                                val bgColor = if (isSelected) MaterialTheme.colorScheme.surface else Color.Transparent
+                                val contentColor = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
 
-                            Row(
-                                modifier = Modifier
-                                    .height(if (isSelected) PdfTabStripHeight else 36.dp)
-                                    .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
-                                    .background(bgColor)
-                                    .clickable { onTabClick(tab.bookId) }
-                                    .padding(horizontal = 16.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = tab.cardTitle(usePdfFileNameAsDisplayName),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.widthIn(max = 140.dp),
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = contentColor
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                IconButton(
-                                    onClick = { onTabClose(tab.bookId) },
-                                    modifier = Modifier.size(20.dp)
+                                Row(
+                                    modifier = Modifier
+                                        .width(tabWidth)
+                                        .height(if (isSelected) PdfTabStripHeight else 36.dp)
+                                        .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
+                                        .background(bgColor)
+                                        .clickable { onTabClick(tab.bookId) }
+                                        .padding(horizontal = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.close_tab), modifier = Modifier.size(16.dp), tint = contentColor)
+                                    Text(
+                                        text = tab.cardTitle(usePdfFileNameAsDisplayName),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f),
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = contentColor
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    IconButton(
+                                        onClick = { onTabClose(tab.bookId) },
+                                        modifier = Modifier.size(20.dp)
+                                    ) {
+                                        Icon(Icons.Default.Close, contentDescription = stringResource(R.string.close_tab), modifier = Modifier.size(16.dp), tint = contentColor)
+                                    }
                                 }
                             }
-                        }
 
-                        item {
-                            IconButton(onClick = onNewTabClick, modifier = Modifier.padding(start = 8.dp, bottom = 4.dp).size(36.dp)) {
-                                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.content_desc_new_tab), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            item {
+                                IconButton(onClick = onNewTabClick, modifier = Modifier.padding(start = 8.dp, bottom = 4.dp).size(36.dp)) {
+                                    Icon(Icons.Default.Add, contentDescription = stringResource(R.string.content_desc_new_tab), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
                             }
                         }
                     }

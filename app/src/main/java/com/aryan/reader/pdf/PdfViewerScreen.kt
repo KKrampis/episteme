@@ -4568,7 +4568,7 @@ fun PdfViewerScreen(
                                 DisplayMode.PAGINATION -> {
                                     val onPaginationPreSingleTap: (Offset) -> Boolean = { tapOffset ->
                                         val canTurnPagesByTap = tapToNavigateEnabled &&
-                                            (currentPageScale <= 1.02f || isScrollLocked)
+                                            !searchState.isSearchActive
 
                                         if (!canTurnPagesByTap) {
                                             false
