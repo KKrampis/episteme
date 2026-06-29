@@ -28,12 +28,15 @@ on:
           - oss
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
-    name: Android ${{ github.event_name == 'workflow_dispatch' && inputs.build_type || 'debug' }} (${{ github.event_name == 'workflow_dispatch' && inputs.flavor || 'standard' }})
     runs-on: ubuntu-latest
+
+    env:
+      BUILD_TYPE: ${{ github.event_name == 'workflow_dispatch' && inputs.build_type || 'debug' }}
+      FLAVOR: ${{ github.event_name == 'workflow_dispatch' && inputs.flavor || 'standard' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -62,39 +65,40 @@ jobs:
           restore-keys: |
             gradle-${{ runner.os }}-
 
-      - name: Decode keystore (release only)
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_type == 'release' && secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+      - name: Decode keystore for release builds
+        if: env.BUILD_TYPE == 'release'
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > app/release.keystore
-          cat >> local.properties <<EOF
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 --decode > app/release.keystore
+            cat >> local.properties <<EOF
           MYAPP_RELEASE_STORE_FILE=release.keystore
-          MYAPP_RELEASE_STORE_PASSWORD=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          MYAPP_RELEASE_KEY_ALIAS=${{ secrets.ANDROID_KEY_ALIAS }}
-          MYAPP_RELEASE_KEY_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD }}
+          MYAPP_RELEASE_STORE_PASSWORD=$KEYSTORE_PASSWORD
+          MYAPP_RELEASE_KEY_ALIAS=$KEY_ALIAS
+          MYAPP_RELEASE_KEY_PASSWORD=$KEY_PASSWORD
           EOF
-
-      - name: Build debug APK
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_type == 'debug' }}
-        run: |
-          FLAVOR="${{ github.event_name == 'workflow_dispatch' && inputs.flavor || 'standard' }}"
-          if [ "$FLAVOR" = "standard" ]; then
-            ./gradlew :app:assembleDebug
-          else
-            ./gradlew :app:assembleOssDebug
           fi
 
-      - name: Build release APK
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_type == 'release' }}
+      - name: Build APK
         run: |
-          if [ "${{ inputs.flavor }}" = "standard" ]; then
-            ./gradlew :app:assembleRelease
+          if [ "$FLAVOR" = "oss" ]; then
+            TASK_FLAVOR="Oss"
           else
-            ./gradlew :app:assembleOssRelease
+            TASK_FLAVOR=""
+          fi
+          if [ "$BUILD_TYPE" = "release" ]; then
+            ./gradlew :app:assemble${TASK_FLAVOR}Release
+          else
+            ./gradlew :app:assemble${TASK_FLAVOR}Debug
           fi
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: episteme-apk-${{ github.event_name == 'workflow_dispatch' && inputs.build_type || 'debug' }}-${{ github.event_name == 'workflow_dispatch' && inputs.flavor || 'standard' }}-${{ github.sha }}
+          name: episteme-${{ env.BUILD_TYPE }}-${{ env.FLAVOR }}-${{ github.sha }}
           path: app/build/outputs/apk/**/*.apk
           retention-days: 30
