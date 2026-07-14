@@ -13,7 +13,7 @@ on:
       build_type:
         description: Build type
         required: true
-        default: debug
+        default: release
         type: choice
         options:
           - debug
@@ -26,16 +26,8 @@ on:
         options:
           - standard
           - oss
-      publish_release:
-        description: Publish to GitHub Releases
-        required: true
-        default: "false"
-        type: choice
-        options:
-          - "false"
-          - "true"
       version:
-        description: Release version tag (e.g. 1.0.0) — required when publishing
+        description: Release version tag (e.g. 1.2.0) — leave blank to use date+SHA
         required: false
         default: ""
 
@@ -47,10 +39,10 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      BUILD_TYPE: ${{ github.event_name == 'workflow_dispatch' && inputs.build_type || 'debug' }}
+      BUILD_TYPE: ${{ github.event_name == 'workflow_dispatch' && inputs.build_type || 'release' }}
       FLAVOR: ${{ github.event_name == 'workflow_dispatch' && inputs.flavor || 'standard' }}
-      PUBLISH_RELEASE: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_release || 'false' }}
-      VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.version || '' }}
+      # Only publish a release on pushes to main or on manual dispatch (not on PRs or claude/** branches)
+      PUBLISH_RELEASE: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -110,37 +102,41 @@ jobs:
             ./gradlew :app:assemble${TASK_FLAVOR}Debug
           fi
 
-      - name: Stage APK for upload
-        id: stage_apk
+      - name: Compute release tag and APK name
+        id: meta
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            TAG="v${{ inputs.version }}"
+          else
+            TAG="build-$(date -u +%Y%m%d)-${GITHUB_SHA::8}"
+          fi
+          APK_NAME="episteme-${TAG}-${FLAVOR}-${BUILD_TYPE}.apk"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "apk_name=$APK_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Stage APK
+        id: stage
         run: |
           APK=$(find app/build/outputs/apk -name "*.apk" | head -1)
-          if [ -z "$APK" ]; then
-            echo "No APK found" && exit 1
-          fi
-          if [ -n "$VERSION" ]; then
-            DEST="episteme-${VERSION}-${FLAVOR}-${BUILD_TYPE}.apk"
-          else
-            DEST="episteme-${FLAVOR}-${BUILD_TYPE}-${GITHUB_SHA::8}.apk"
-          fi
-          cp "$APK" "$DEST"
-          echo "apk_path=$DEST" >> "$GITHUB_OUTPUT"
-          echo "apk_name=$DEST" >> "$GITHUB_OUTPUT"
+          if [ -z "$APK" ]; then echo "No APK found" && exit 1; fi
+          cp "$APK" "${{ steps.meta.outputs.apk_name }}"
+          echo "apk_path=${{ steps.meta.outputs.apk_name }}" >> "$GITHUB_OUTPUT"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: episteme-${{ env.BUILD_TYPE }}-${{ env.FLAVOR }}-${{ github.sha }}
-          path: ${{ steps.stage_apk.outputs.apk_path }}
+          path: ${{ steps.stage.outputs.apk_path }}
           retention-days: 30
 
       - name: Publish GitHub Release
-        if: env.PUBLISH_RELEASE == 'true' && env.VERSION != ''
+        if: env.PUBLISH_RELEASE == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG="v${VERSION}"
+          TAG="${{ steps.meta.outputs.tag }}"
           gh release create "$TAG" \
-            "${{ steps.stage_apk.outputs.apk_path }}" \
-            --title "Episteme ${VERSION}" \
-            --notes "Android APK — flavor: \`${FLAVOR}\`, build type: \`${BUILD_TYPE}\`" \
+            "${{ steps.stage.outputs.apk_path }}" \
+            --title "Episteme ${TAG}" \
+            --notes "Built from commit \`${GITHUB_SHA::8}\` — flavor: \`${FLAVOR}\`, build type: \`${BUILD_TYPE}\`" \
             --repo "$GITHUB_REPOSITORY"

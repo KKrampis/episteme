@@ -8,17 +8,26 @@ Workflow file: `.github/workflows/android-build.yml`
 
 ### What it produces
 
-A debug APK built from the `standard` product flavor. The APK is uploaded as a workflow artifact and kept for 30 days.
+A release APK built from the `standard` product flavor.
 
-### How to download the APK (artifact)
+### Automatic GitHub Release (on push to `main`)
+
+Every push to `main` triggers a build **and** publishes the APK to **GitHub Releases** automatically — no manual steps needed. The release is tagged `build-YYYYMMDD-<sha8>` (e.g. `build-20260714-a1b2c3d4`).
+
+Find the latest APK at: **Repository → Releases** (right sidebar on the main page)
+
+Releases are permanent and publicly downloadable — no GitHub account required, no expiry.
+
+### Builds on `claude/**` branches and pull requests
+
+These still compile and upload the APK as a workflow **artifact** (temporary, 30 days, requires GitHub login to download), but do **not** publish a GitHub Release. This keeps the Releases page clean.
+
+### How to download the artifact (for non-main branches)
 
 1. Go to the repository on GitHub → **Actions** tab
-2. Click the latest **Android build** run
-3. Scroll to the bottom → **Artifacts**
-4. Download the zip (e.g. `episteme-debug-standard-<sha>`)
-5. Unzip — the `.apk` file is inside
-
-> Artifacts expire after 30 days and require a GitHub login to download.
+2. Click the build run
+3. Scroll to **Artifacts** at the bottom
+4. Download the zip and unzip — the `.apk` is inside
 
 ### Installing on an Android device
 
@@ -27,37 +36,22 @@ A debug APK built from the `standard` product flavor. The APK is uploaded as a w
 2. Transfer the APK to your phone (email, Google Drive, USB cable, etc.)
 3. Tap the APK file to install
 
-> **Note:** A debug APK is signed with a generic debug key. If you have the Play Store version installed, Android may refuse to install over it due to a signing mismatch — uninstall the Play Store version first.
+> **Note:** A release APK must be signed to install. A debug APK uses a generic debug key. If you have the Play Store version installed, Android may refuse to install over it due to a signing mismatch — uninstall the Play Store version first.
 
 ---
 
-## Manual / Release Builds
+## Manual trigger
 
-The workflow supports a manual trigger (`workflow_dispatch`) for building release APKs and optionally publishing them to **GitHub Releases** — permanent, public download links that do not expire and do not require a GitHub login.
+You can also trigger a build manually with a custom version tag:
 
-### How to manually trigger a release build and publish it
+1. Go to **Actions** → **Android build** → **Run workflow**
+2. Select:
+   - **Build type:** `debug` or `release`
+   - **Flavor:** `standard` or `oss`
+   - **Release version tag:** e.g. `1.2.0` (leave blank to use `build-YYYYMMDD-<sha>`)
+3. Click **Run workflow**
 
-1. Go to the repository on GitHub → **Actions** tab
-2. In the left sidebar click **Android build**
-3. Click the **Run workflow** button (top right of the runs list)
-4. Fill in the inputs:
-
-   | Input | What to set |
-   |-------|-------------|
-   | **Build type** | `release` (or `debug` for testing) |
-   | **Product flavor** | `standard` or `oss` |
-   | **Publish to GitHub Releases** | `true` to create a public release |
-   | **Release version tag** | A version string like `1.0.0` — this becomes the Git tag `v1.0.0` and is part of the APK filename |
-
-5. Click **Run workflow**
-
-The build takes ~3–10 minutes. When it finishes:
-- The APK is always uploaded as a workflow artifact (temporary, 30 days).
-- If you set **Publish to GitHub Releases** = `true` and supplied a version, the APK is also published to **Releases** → permanently accessible at a public URL like `https://github.com/<owner>/episteme/releases/tag/v1.0.0`.
-
-### Finding the released APK
-
-Go to the repository → **Releases** (right sidebar on the main page, or `https://github.com/<owner>/episteme/releases`). Click the release to expand the assets and download the APK directly — no GitHub account required.
+A manual trigger always publishes to GitHub Releases.
 
 ---
 
@@ -86,7 +80,7 @@ GitHub Actions runners use **Temurin JDK 21**. The project's `gradle/gradle-daem
 toolchainVersion=21
 ```
 
-This is done automatically by the workflow and does not affect local development (the file is restored after the workflow step).
+This is done automatically by the workflow and does not affect local development.
 
 ### First build vs. cached builds
 
