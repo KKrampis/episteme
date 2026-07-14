@@ -26,9 +26,21 @@ on:
         options:
           - standard
           - oss
+      publish_release:
+        description: Publish to GitHub Releases
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+      version:
+        description: Release version tag (e.g. 1.0.0) — required when publishing
+        required: false
+        default: ""
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -37,6 +49,8 @@ jobs:
     env:
       BUILD_TYPE: ${{ github.event_name == 'workflow_dispatch' && inputs.build_type || 'debug' }}
       FLAVOR: ${{ github.event_name == 'workflow_dispatch' && inputs.flavor || 'standard' }}
+      PUBLISH_RELEASE: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_release || 'false' }}
+      VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.version || '' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -96,9 +110,37 @@ jobs:
             ./gradlew :app:assemble${TASK_FLAVOR}Debug
           fi
 
+      - name: Stage APK for upload
+        id: stage_apk
+        run: |
+          APK=$(find app/build/outputs/apk -name "*.apk" | head -1)
+          if [ -z "$APK" ]; then
+            echo "No APK found" && exit 1
+          fi
+          if [ -n "$VERSION" ]; then
+            DEST="episteme-${VERSION}-${FLAVOR}-${BUILD_TYPE}.apk"
+          else
+            DEST="episteme-${FLAVOR}-${BUILD_TYPE}-${GITHUB_SHA::8}.apk"
+          fi
+          cp "$APK" "$DEST"
+          echo "apk_path=$DEST" >> "$GITHUB_OUTPUT"
+          echo "apk_name=$DEST" >> "$GITHUB_OUTPUT"
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: episteme-${{ env.BUILD_TYPE }}-${{ env.FLAVOR }}-${{ github.sha }}
-          path: app/build/outputs/apk/**/*.apk
+          path: ${{ steps.stage_apk.outputs.apk_path }}
           retention-days: 30
+
+      - name: Publish GitHub Release
+        if: env.PUBLISH_RELEASE == 'true' && env.VERSION != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="v${VERSION}"
+          gh release create "$TAG" \
+            "${{ steps.stage_apk.outputs.apk_path }}" \
+            --title "Episteme ${VERSION}" \
+            --notes "Android APK — flavor: \`${FLAVOR}\`, build type: \`${BUILD_TYPE}\`" \
+            --repo "$GITHUB_REPOSITORY"

@@ -10,13 +10,15 @@ Workflow file: `.github/workflows/android-build.yml`
 
 A debug APK built from the `standard` product flavor. The APK is uploaded as a workflow artifact and kept for 30 days.
 
-### How to download the APK
+### How to download the APK (artifact)
 
 1. Go to the repository on GitHub → **Actions** tab
 2. Click the latest **Android build** run
 3. Scroll to the bottom → **Artifacts**
 4. Download the zip (e.g. `episteme-debug-standard-<sha>`)
 5. Unzip — the `.apk` file is inside
+
+> Artifacts expire after 30 days and require a GitHub login to download.
 
 ### Installing on an Android device
 
@@ -31,17 +33,35 @@ A debug APK built from the `standard` product flavor. The APK is uploaded as a w
 
 ## Manual / Release Builds
 
-The workflow also supports a manual trigger (`workflow_dispatch`) for building release APKs.
+The workflow supports a manual trigger (`workflow_dispatch`) for building release APKs and optionally publishing them to **GitHub Releases** — permanent, public download links that do not expire and do not require a GitHub login.
 
-### Triggering a manual build
+### How to manually trigger a release build and publish it
 
-1. Go to **Actions** → **Android build** → **Run workflow**
-2. Select:
-   - **Build type:** `debug` or `release`
-   - **Flavor:** `standard` or `oss`
-3. Click **Run workflow**
+1. Go to the repository on GitHub → **Actions** tab
+2. In the left sidebar click **Android build**
+3. Click the **Run workflow** button (top right of the runs list)
+4. Fill in the inputs:
 
-### Release signing
+   | Input | What to set |
+   |-------|-------------|
+   | **Build type** | `release` (or `debug` for testing) |
+   | **Product flavor** | `standard` or `oss` |
+   | **Publish to GitHub Releases** | `true` to create a public release |
+   | **Release version tag** | A version string like `1.0.0` — this becomes the Git tag `v1.0.0` and is part of the APK filename |
+
+5. Click **Run workflow**
+
+The build takes ~3–10 minutes. When it finishes:
+- The APK is always uploaded as a workflow artifact (temporary, 30 days).
+- If you set **Publish to GitHub Releases** = `true` and supplied a version, the APK is also published to **Releases** → permanently accessible at a public URL like `https://github.com/<owner>/episteme/releases/tag/v1.0.0`.
+
+### Finding the released APK
+
+Go to the repository → **Releases** (right sidebar on the main page, or `https://github.com/<owner>/episteme/releases`). Click the release to expand the assets and download the APK directly — no GitHub account required.
+
+---
+
+## Release signing
 
 Release builds are signed with your keystore if the following repository secrets are configured:
 
